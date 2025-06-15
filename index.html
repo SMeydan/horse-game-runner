@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>AtBot Runner Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+<script type="text/javascript">
+    var config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        physics: {
+            default: 'arcade',
+            arcade: {
+                gravity: { y: 300 },
+                debug: false
+            }
+        },
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+
+    var game = new Phaser.Game(config);
+    let player;
+    let cursors;
+    let gameStarted = false;
+    let startButton;
+    let obstacleTimer;
+    let coinTimer;
+
+    function preload() {
+        this.load.image('bg', 'assets/bg.png');
+        this.load.image('ground', 'assets/ground.png');
+        this.load.image('obstacle', 'assets/obstacle.png');
+        this.load.image('coin', 'assets/coin.png');
+        this.load.image('startBtn', 'assets/start.png');
+        this.load.image('restartBtn', 'assets/restart.png');
+        this.load.spritesheet('dude', 'assets/horse3.png', { frameWidth: 210, frameHeight: 700 });
+    }
+
+    function create() {
+        this.add.image(400, 300, 'bg');
+
+        this.score = 0;
+        this.lives = 3;
+        gameStarted = false;
+
+        this.platforms = this.physics.add.staticGroup();
+        this.obstacles = this.physics.add.group();
+        this.coins = this.physics.add.group();
+
+        this.platforms.create(400, 660, 'ground').setScale(2).refreshBody();
+
+        player = this.physics.add.sprite(100, 450, 'dude').setScale(0.2);
+        player.setBounce(0.2);
+        player.setCollideWorldBounds(true);
+
+        this.scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '18px', fill: '#fff' }).setVisible(false);
+        this.livesText = this.add.text(700, 16, '❤️ x3', { fontSize: '18px', fill: '#fff' }).setVisible(false);
+
+        this.physics.add.collider(player, this.platforms);
+        this.physics.add.collider(player, this.obstacles, hitObstacle, null, this);
+        this.physics.add.overlap(player, this.coins, collectCoin, null, this);
+
+        this.anims.create({
+            key: 'left',
+            frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: 'turn',
+            frames: [{ key: 'dude', frame: 3 }],
+            frameRate: 20
+        });
+
+        this.anims.create({
+            key: 'right',
+            frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 7 }),
+            frameRate: 8,
+            repeat: -1
+        });
+
+        cursors = this.input.keyboard.createCursorKeys();
+
+        // Start button
+        startButton = this.add.image(400, 300, 'startBtn').setInteractive().setScale(0.5);
+        startButton.on('pointerdown', () => {
+            startButton.destroy();
+            this.scoreText.setVisible(true);
+            this.livesText.setVisible(true);
+            gameStarted = true;
+
+            // Başlatma eventleri
+            obstacleTimer = this.time.addEvent({
+                delay: 4000,
+                loop: true,
+                callback: spawnObstacle,
+                callbackScope: this
+            });
+
+            coinTimer = this.time.addEvent({
+                delay: 3000,
+                loop: true,
+                callback: spawnCoin,
+                callbackScope: this
+            });
+        });
+    }
+
+    function update() {
+        if (!gameStarted) return;
+
+        if (cursors.left.isDown) {
+            player.setVelocityX(-160);
+            player.anims.play('left', true);
+        } else if (cursors.right.isDown) {
+            player.setVelocityX(160);
+            player.anims.play('right', true);
+        } else {
+            player.setVelocityX(0);
+            player.anims.play('turn');
+        }
+
+        if (cursors.up.isDown && player.body.touching.down) {
+            player.setVelocityY(-330);
+        }
+    }
+
+    function spawnObstacle() {
+        const y = 490;
+        const obs = this.obstacles.create(800, y, 'obstacle').setScale(0.2);
+        obs.setVelocityX(-Phaser.Math.Between(100, 200));
+        obs.setImmovable();
+        obs.body.allowGravity = false;
+    }
+
+    function spawnCoin() {
+        const coin = this.coins.create(800, Phaser.Math.Between(300, 500), 'coin').setScale(0.1);
+        coin.setVelocityX(-200);
+        coin.body.allowGravity = false;
+    }
+
+    function collectCoin(player, coin) {
+        coin.destroy();
+        this.score += 10;
+        this.scoreText.setText('Score: ' + this.score);
+    }
+
+    function hitObstacle(player, obstacle) {
+        obstacle.destroy();
+        this.lives -= 1;
+        this.livesText.setText('❤️ x' + this.lives);
+
+        if (this.lives <= 0) {
+            this.physics.pause();
+            player.anims.stop();
+
+            if (obstacleTimer) obstacleTimer.remove();
+            if (coinTimer) coinTimer.remove();
+
+            const btn = this.add.image(400, 200, 'restartBtn').setInteractive().setScale(0.5);
+            btn.on('pointerdown', () => this.scene.restart());
+        }
+    }
+</script>
+</body>
+</html>
